@@ -2,7 +2,6 @@ package main
 
 import "github.com/DrItanium/unicornhat"
 import "time"
-import "fmt"
 
 func terminate_unicorn(status int) {
 	for i := 0; i < 64; i++ {
@@ -16,7 +15,6 @@ func main() {
 	unicornhat.Init(64)
 	unicornhat.ClearLEDBuffer()
 	for count := 0; count < 64; count++ {
-		fmt.Println("count = ", count)
 		unicornhat.SetPixelColor(0,1,1,1)
 		unicornhat.Show()
 		time.Sleep(10 * time.Microsecond)
