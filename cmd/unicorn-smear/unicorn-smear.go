@@ -60,7 +60,36 @@ func main() {
 			unicornhat.Show()
 			microsecond_delay(10)
 		}
+		moreToFade := true
+		for moreToFade {
+
+			moreToFade = false
+			for i := 0; i < 64; i++ {
+				pix := unicornhat.GetPixelColor(uint(i))
+				var r, g, b byte
+				if pix.R > 0 {
+					r = pix.R - 1
+					moreToFade = true
+				} else {
+					r = 0
+				}
+				if pix.G > 0 {
+					g = pix.G - 1
+					moreToFade = true
+				} else {
+					g = 0
+				}
+				if pix.B > 0 {
+					b = pix.B - 1
+					moreToFade = true
+				} else {
+					b = 0
+				}
+				unicornhat.SetPixelColor(uint(i), r, g, b)
+			}
+			unicornhat.Show()
+		}
 		microsecond_delay(10)
 	}
-	terminate_unicorn(0)
+	defer terminate_unicorn(0)
 }
