@@ -41,17 +41,7 @@ func main() {
 				running = false
 			} else {
 				pixel.R = tmp
-			}
-			tmp, err = input.ReadByte()
-			if err != nil {
-				running = false
-			} else {
 				pixel.G = tmp
-			}
-			tmp, err = input.ReadByte()
-			if err != nil {
-				running = false
-			} else {
 				pixel.B = tmp
 			}
 			unicornhat.SetPixelColorType(uint(i), pixel)
