@@ -1,10 +1,13 @@
 package main
 
-import "github.com/DrItanium/unicornhat"
-import "time"
-import "os"
-import "os/signal"
-import "syscall"
+import (
+	"bufio"
+	"github.com/DrItanium/unicornhat"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
 
 func terminate_unicorn(status int) {
 	for i := 0; i < 64; i++ {
@@ -28,36 +31,35 @@ func main() {
 	unicornhat.Initialize(64, unicornhat.DefaultBrightness())
 	unicornhat.ClearLEDBuffer()
 	unicornhat.Show()
+	input := bufio.NewReader(os.Stdin)
 	// setup the initial pixels
 	for running {
-		var pixel unicornhat.Pixel
-		for r := 0; r < 255; r += 5 {
-			pixel.R = byte(r)
-			for g := 0; g < 255; g += 5 {
-				pixel.G = byte(g)
-				for b := 0; b < 255; b += 5 {
-					pixel.B = byte(b)
-					for i := 0; i < 64; i++ {
-						unicornhat.SetPixelColorType(uint(i), pixel)
-						if !running {
-							break
-						}
-					}
-					if !running {
-						break
-					}
-					unicornhat.Show()
-				}
-				if !running {
-					break
-				}
+		for i := 0; i < 64; i++ {
+			var pixel unicornhat.Pixel
+			tmp, err := input.ReadByte()
+			if err != nil {
+				running = false
+			} else {
+				pixel.R = tmp
 			}
+			tmp, err = input.ReadByte()
+			if err != nil {
+				running = false
+			} else {
+				pixel.G = tmp
+			}
+			tmp, err = input.ReadByte()
+			if err != nil {
+				running = false
+			} else {
+				pixel.B = tmp
+			}
+			unicornhat.SetPixelColorType(uint(i), pixel)
+			unicornhat.Show()
+			microsecond_delay(10)
 			if !running {
 				break
 			}
-		}
-		if !running {
-			break
 		}
 	}
 }
