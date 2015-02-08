@@ -28,22 +28,17 @@ type wideFunctionBody func(word *microcode.MicrocodeWord)
 
 func loadWordAndPerformAction(input *bufio.Reader, body wideFunctionBody) {
 	word, err := microcode.ReadMicrocodeWord(input)
-	if err != nil {
-		return
+	if err == nil {
+		body(word)
 	}
-	body(word)
 }
 func nativePixelUpdate(input *bufio.Reader, fullpage bool) {
 	loadWordAndPerformAction(input, func(word *microcode.MicrocodeWord) {
-		for i := 0; i < 64; i++ {
-			if !neuron.IsRunning() {
-				return
-			}
-			unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
+		for i := 0; neuron.IsRunning() && i < 64; i++ {
+			word[i].UpdateNativePixel(i, microsecond_delay)
 			if !fullpage {
 				unicornhat.Show()
 			}
-			microsecond_delay(time.Duration(word[i].Delay))
 		}
 		if fullpage {
 			unicornhat.Show()
@@ -52,22 +47,15 @@ func nativePixelUpdate(input *bufio.Reader, fullpage bool) {
 }
 func lineByLineUpdate(input *bufio.Reader, doRowByRow bool) {
 	loadWordAndPerformAction(input, func(word *microcode.MicrocodeWord) {
-		for x := 0; x < 8; x++ {
-			if !neuron.IsRunning() {
-				return
-			}
-			for y := 0; y < 8; y++ {
-				if !neuron.IsRunning() {
-					return
-				}
+		for x := 0; neuron.IsRunning() && x < 8; x++ {
+			for y := 0; neuron.IsRunning() && y < 8; y++ {
 				var index int
 				if doRowByRow {
 					index = unicornhat.CoordinateToPosition(y, x)
 				} else {
 					index = unicornhat.CoordinateToPosition(x, y)
 				}
-				unicornhat.SetPixelColorType(uint(index), &word[index].Pixel)
-				microsecond_delay(time.Duration(word[index].Delay))
+				word[index].UpdateNativePixel(index, microsecond_delay)
 			}
 			unicornhat.Show()
 		}
@@ -78,17 +66,11 @@ func main() {
 	defer unicornsys.Terminate(0)
 	flag.Parse()
 	neuron.StopRunningOnSignal(syscall.SIGINT)
-	if *brightness > unicornhat.DefaultBrightness() {
-		if *brightness > 1.0 {
-			fmt.Println("Brightness higher than 1.0, setting to default brightness for safety sake!")
-			*brightness = unicornhat.DefaultBrightness()
-		} else {
-			fmt.Println("WARNING: you've set the brightness higher than the default, this can get bright! Please don't look directly at it!")
-		}
-	}
-	if *brightness < 0.0 {
-		fmt.Println("Brightness less than 0.0, setting to default brightness!")
+	if *brightness > 1.0 || *brightness < 0.0 {
+		fmt.Println("Brightness out of range, using the default brightness")
 		*brightness = unicornhat.DefaultBrightness()
+	} else if *brightness > unicornhat.DefaultBrightness() {
+		fmt.Println("WARNING: you've set the brightness higher than the default, this can get bright! Please don't look directly at it!")
 	}
 	unicornhat.Initialize(64, *brightness)
 	unicornhat.ClearLEDBuffer()

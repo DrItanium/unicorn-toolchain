@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"github.com/DrItanium/neuron"
 	"github.com/DrItanium/unicornhat"
+	"time"
 )
 
 const (
@@ -33,4 +34,15 @@ func ReadMicrocodeWord(input *bufio.Reader) (*MicrocodeWord, error) {
 		word[index].Delay = elements[i+3]
 	}
 	return &word, nil
+}
+
+type DelayFunction func(delay time.Duration)
+
+func (self *MicrocodeField) Pause(f DelayFunction) {
+	f(time.Duration(self.Delay))
+}
+
+func (self *MicrocodeField) UpdateNativePixel(index int, f DelayFunction) {
+	unicornhat.SetPixelColorType(uint(index), &self.Pixel)
+	self.Pause(f)
 }
