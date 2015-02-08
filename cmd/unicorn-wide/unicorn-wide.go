@@ -1,11 +1,14 @@
 package main
 
-import "github.com/DrItanium/unicornhat"
-import "time"
-import "math/rand"
-import "os"
-import "os/signal"
-import "syscall"
+import (
+	"bufio"
+	"github.com/DrItanium/unicornhat"
+	"math/rand"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
 
 func terminate_unicorn(status int) {
 	for i := 0; i < 64; i++ {
@@ -21,7 +24,17 @@ func random_byte() byte {
 	return byte(rand.Int())
 }
 
+func readPixelByPixelQuantum(input *bufio.Reader) (*unicornhat.Pixel, error) {
+	elements := make([]byte, 3)
+	count, err := input.Read(elements)
+	if err != nil && count == 0 {
+		return nil, err
+	}
+	return &unicornhat.Pixel{R: elements[0], G: elements[1], B: elements[2]}, err
+}
+
 func main() {
+	defer terminate_unicorn(0)
 	running := true
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT)
@@ -31,65 +44,19 @@ func main() {
 	}()
 	unicornhat.Initialize(64, unicornhat.DefaultBrightness())
 	unicornhat.ClearLEDBuffer()
+	input := bufio.NewReader(os.Stdin)
 	for running {
-		unicornhat.SetPixelColor(0, random_byte(), random_byte(), random_byte())
-		unicornhat.Show()
-		microsecond_delay(10)
-		for index := 1; index < 64; index++ {
-			unicornhat.SetPixelColor(uint(index), random_byte(), random_byte(), random_byte())
-			for i := 0; i < index; i++ {
-				pix := unicornhat.GetPixelColor(uint(i))
-				var r, g, b byte
-				if pix.R > 0 {
-					r = pix.R - 1
-				} else {
-					r = 0
-				}
-				if pix.G > 0 {
-					g = pix.G - 1
-				} else {
-					g = 0
-				}
-				if pix.B > 0 {
-					b = pix.B - 1
-				} else {
-					b = 0
-				}
-				unicornhat.SetPixelColor(uint(i), r, g, b)
+		for i := 0; i < 64; i++ {
+			if !running {
+				break
 			}
-			unicornhat.Show()
-			microsecond_delay(10)
-		}
-		moreToFade := true
-		for moreToFade {
-
-			moreToFade = false
-			for i := 0; i < 64; i++ {
-				pix := unicornhat.GetPixelColor(uint(i))
-				var r, g, b byte
-				if pix.R > 0 {
-					r = pix.R - 1
-					moreToFade = true
-				} else {
-					r = 0
-				}
-				if pix.G > 0 {
-					g = pix.G - 1
-					moreToFade = true
-				} else {
-					g = 0
-				}
-				if pix.B > 0 {
-					b = pix.B - 1
-					moreToFade = true
-				} else {
-					b = 0
-				}
-				unicornhat.SetPixelColor(uint(i), r, g, b)
+			pixel, err := readPixelByPixelQuantum(input)
+			if err != nil {
+				running = false
 			}
-			unicornhat.Show()
+			if pixel != nil {
+				unicornhat.SetPixelColorType(uint(i), pixel)
+			}
 		}
-		microsecond_delay(10)
 	}
-	defer terminate_unicorn(0)
 }
