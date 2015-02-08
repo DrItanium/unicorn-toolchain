@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/DrItanium/neuron"
+	"github.com/DrItanium/unicorn-toolchain/sys"
 	"github.com/DrItanium/unicornhat"
 	"math/rand"
 	"os"
-	"os/signal"
 	"syscall"
 	"time"
 )
@@ -16,7 +17,7 @@ var coords = flag.Bool("horizontal", false, "display lights in a horzontal fashi
 var randomize = flag.Bool("randomize", false, "randomize the position to select")
 var hyperSpeed = flag.Bool("hyperspeed", false, "eliminate all microsecond delay calls")
 var pixelDelay = flag.Uint("delay", 10, "number of microseconds to pause in between pixel updates")
-var preset = flag.Int("preset", 0, "select a predefined color palette index.\n\t0 - all colors\n\t1 - greyscale\n\t2 - green\n\t3 - yellow\n\t4 - yellow and green\n\t5 - purple\n\t6 - cyan")
+var preset = flag.Int("preset", 0, "select a predefined color palette index.\n\t0 - all colors\n\t1 - greyscale\n\t2 - green\n\t3 - yellow\n\t4 - yellow and green\n\t5 - purple\n\t6 - cyan\n\t7 - blue\n\t8 - red")
 var fullPage = flag.Bool("fullpage", false, "Update all 64 pixels at a time instead of updating after each pixel change")
 
 const (
@@ -27,124 +28,109 @@ const (
 	GreenAndYellow
 	Purple
 	Cyan
+	Blue
+	Red
 )
 
 type intensityHandler func(intensity byte) *unicornhat.Pixel
+type colorTransfomer func(intensities []byte) *unicornhat.Pixel
 
-func singleBytePixel(input *bufio.Reader, i int, transformer intensityHandler) bool {
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	}
-	unicornhat.SetPixelColorType(uint(i), transformer(tmp))
-	if !*fullPage {
-		unicornhat.Show()
-	}
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
-}
-func terminate_unicorn(status int) {
-	for i := 0; i < 64; i++ {
-		unicornhat.SetPixelColor(uint(i), 0, 0, 0)
-	}
-	unicornhat.Show()
-	unicornhat.Shutdown(status)
-}
 func microsecond_delay(usec time.Duration) {
-	time.Sleep(usec * time.Microsecond)
+	if !*hyperSpeed {
+		time.Sleep(usec * time.Microsecond)
+	}
 }
-func colorPixel(input *bufio.Reader, i int) bool {
-	var pixel unicornhat.Pixel
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.R = tmp
+func updatePixel(input *bufio.Reader, i int, sz int, transform colorTransfomer) {
+	elements := make([]byte, sz)
+	count, err := input.Read(elements)
+	if err != nil && count == 0 {
+		neuron.StopRunning()
+		return
 	}
-	tmp, err = input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.G = tmp
-	}
-	tmp, err = input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.B = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), &pixel)
+	unicornhat.SetPixelColorType(uint(i), transform(elements))
+	microsecond_delay(time.Duration(*pixelDelay))
 	if !*fullPage {
 		unicornhat.Show()
 	}
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
 }
-func greyscalePixel(input *bufio.Reader, i int) bool {
-	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, intensity, intensity) })
+func singleBytePixel(input *bufio.Reader, i int, transformer intensityHandler) {
+	updatePixel(input, i, 1, func(elements []byte) *unicornhat.Pixel {
+		return transformer(elements[0])
+	})
 }
-func purplePixel(input *bufio.Reader, i int) bool {
+func colorPixel(input *bufio.Reader, i int) {
+	updatePixel(input, i, 3, func(elements []byte) *unicornhat.Pixel {
+		return unicornhat.NewPixel(elements[0], elements[1], elements[2])
+	})
+}
+
+func greyscale(intensity byte) *unicornhat.Pixel {
+	return unicornhat.NewPixel(intensity, intensity, intensity)
+}
+func purple(intensity byte) *unicornhat.Pixel {
 	// purple is made up of red and blue so no green
-	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, 0, intensity) })
+	return unicornhat.NewPixel(intensity, 0, intensity)
 }
-func cyanPixel(input *bufio.Reader, i int) bool {
+func cyan(intensity byte) *unicornhat.Pixel {
 	// cyan is made up of green and blue so no red
-	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(0, intensity, intensity) })
+	return unicornhat.NewPixel(0, intensity, intensity)
 }
-func yellowPixel(input *bufio.Reader, i int) bool {
-	// yellow is made up of red and green so no blue
-	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, intensity, 0) })
+func yellow(intensity byte) *unicornhat.Pixel {
+	// yellow is made up of green and red so no blue
+	return unicornhat.NewPixel(intensity, intensity, 0)
 }
-func greenPixel(input *bufio.Reader, i int) bool {
-	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(0, intensity, 0) })
+func green(intensity byte) *unicornhat.Pixel {
+	return unicornhat.NewPixel(0, intensity, 0)
 }
-func showPixel(input *bufio.Reader, i int) bool {
+func red(intensity byte) *unicornhat.Pixel {
+	return unicornhat.NewPixel(intensity, 0, 0)
+}
+
+func blue(intensity byte) *unicornhat.Pixel {
+	return unicornhat.NewPixel(0, 0, intensity)
+}
+
+func showPixel(input *bufio.Reader, i int) {
 	switch *preset {
 	case FullColorPreset:
-		return colorPixel(input, i)
+		colorPixel(input, i)
 	case Greyscale:
-		return greyscalePixel(input, i)
+		singleBytePixel(input, i, greyscale)
 	case Green:
-		return greenPixel(input, i)
+		singleBytePixel(input, i, green)
 	case Yellow:
-		return yellowPixel(input, i)
+		singleBytePixel(input, i, yellow)
 	case GreenAndYellow:
 		if rand.Int()%2 == 1 {
-			return greenPixel(input, i)
+			singleBytePixel(input, i, green)
 		} else {
-			return yellowPixel(input, i)
+			singleBytePixel(input, i, yellow)
 		}
 	case Purple:
-		return purplePixel(input, i)
+		singleBytePixel(input, i, purple)
 	case Cyan:
-		return cyanPixel(input, i)
+		singleBytePixel(input, i, cyan)
+	case Blue:
+		singleBytePixel(input, i, blue)
+	case Red:
+		singleBytePixel(input, i, red)
 	default:
+		neuron.StopRunning()
 		fmt.Println("Invalid preset ", *preset, "provided!")
-		return false
 	}
 }
 
 func main() {
-	defer terminate_unicorn(0)
+	defer unicornsys.Terminate(0)
 	flag.Parse()
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	running := true
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT)
-	go func() {
-		<-signalChan
-		running = false
-	}()
+	neuron.StopRunningOnSignal(syscall.SIGINT)
 	unicornhat.Initialize(64, unicornhat.DefaultBrightness())
 	unicornhat.ClearLEDBuffer()
 	unicornhat.Show()
 	input := bufio.NewReader(os.Stdin)
 	// setup the initial pixels
-	for running {
+	for neuron.IsRunning() {
 		if *coords {
 			for y := 0; y < 8; y++ {
 				for x := 0; x < 8; x++ {
@@ -154,12 +140,12 @@ func main() {
 						vY = r.Int() % 8
 						vX = r.Int() % 8
 					}
-					running = showPixel(input, unicornhat.CoordinateToPosition(vX, vY)) && running
-					if !running {
+					showPixel(input, unicornhat.CoordinateToPosition(vX, vY))
+					if !neuron.IsRunning() {
 						break
 					}
 				}
-				if !running {
+				if !neuron.IsRunning() {
 					break
 				}
 			}
@@ -172,12 +158,12 @@ func main() {
 				if *randomize && (r.Int()%2 == 1) {
 					vI = r.Int() % 64
 				}
-				running = showPixel(input, vI) && running
-				if !running {
+				showPixel(input, vI)
+				if !neuron.IsRunning() {
 					break
 				}
 			}
-			if !running {
+			if !neuron.IsRunning() {
 				break
 			}
 			if *fullPage {
