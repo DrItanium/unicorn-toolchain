@@ -17,6 +17,7 @@ var randomize = flag.Bool("randomize", false, "randomize the position to select"
 var hyperSpeed = flag.Bool("hyperspeed", false, "eliminate all microsecond delay calls")
 var pixelDelay = flag.Uint("delay", 10, "number of microseconds to pause in between pixel updates")
 var preset = flag.Int("preset", 0, "select a predefined color palette index.\n\t0 - all colors\n\t1 - greyscale\n\t2 - green\n\t3 - yellow\n\t4 - yellow and green\n\t5 - purple\n\t6 - cyan")
+var fullPage = flag.Bool("fullpage", false, "Update all 64 pixels at a time instead of updating after each pixel change")
 
 const (
 	FullColorPreset = iota
@@ -28,6 +29,22 @@ const (
 	Cyan
 )
 
+type intensityHandler func(intensity byte) unicornhat.Pixel
+
+func singleBytePixel(input *bufio.Reader, i int, transformer intensityHandler) bool {
+	tmp, err := input.ReadByte()
+	if err != nil {
+		return false
+	}
+	unicornhat.SetPixelColorType(uint(i), transformer(tmp))
+	if !*fullPage {
+		unicornhat.Show()
+	}
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
+	return true
+}
 func terminate_unicorn(status int) {
 	for i := 0; i < 64; i++ {
 		unicornhat.SetPixelColor(uint(i), 0, 0, 0)
@@ -37,22 +54,6 @@ func terminate_unicorn(status int) {
 }
 func microsecond_delay(usec time.Duration) {
 	time.Sleep(usec * time.Microsecond)
-}
-func greyscalePixel(input *bufio.Reader, i int) bool {
-	var pixel unicornhat.Pixel
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.R = tmp
-		pixel.G = tmp
-		pixel.B = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
-
-	microsecond_delay(time.Duration(*pixelDelay))
-	return true
 }
 func colorPixel(input *bufio.Reader, i int) bool {
 	var pixel unicornhat.Pixel
@@ -75,81 +76,33 @@ func colorPixel(input *bufio.Reader, i int) bool {
 		pixel.B = tmp
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
+	if !*fullPage {
+		unicornhat.Show()
+	}
 	if !*hyperSpeed {
 		microsecond_delay(time.Duration(*pixelDelay))
 	}
 	return true
+}
+func greyscalePixel(input *bufio.Reader, i int) bool {
+	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel {
+		return unicornhat.Pixel{R: intensity, G: intensity, B: intensity}
+	})
 }
 func purplePixel(input *bufio.Reader, i int) bool {
 	// purple is made up of red and blue so no green
-	var pixel unicornhat.Pixel
-	pixel.G = 0
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.R = tmp
-		pixel.B = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
+	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: intensity, G: 0, B: intensity} })
 }
 func cyanPixel(input *bufio.Reader, i int) bool {
 	// cyan is made up of green and blue so no red
-	var pixel unicornhat.Pixel
-	pixel.R = 0
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.G = tmp
-		pixel.B = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
+	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: 0, G: intensity, B: intensity} })
 }
 func yellowPixel(input *bufio.Reader, i int) bool {
 	// yellow is made up of red and green so no blue
-	var pixel unicornhat.Pixel
-	pixel.B = 0
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.R = tmp
-		pixel.G = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
+	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: intensity, G: intensity, B: 0} })
 }
 func greenPixel(input *bufio.Reader, i int) bool {
-	var pixel unicornhat.Pixel
-	tmp, err := input.ReadByte()
-	if err != nil {
-		return false
-	} else {
-		pixel.G = tmp
-	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
-	unicornhat.Show()
-	if !*hyperSpeed {
-		microsecond_delay(time.Duration(*pixelDelay))
-	}
-	return true
-
+	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: 0, G: intensity, B: 0} })
 }
 func showPixel(input *bufio.Reader, i int) bool {
 	switch *preset {
@@ -212,6 +165,9 @@ func main() {
 					break
 				}
 			}
+			if *fullPage {
+				unicornhat.Show()
+			}
 		} else {
 			for i := 0; i < 64; i++ {
 				vI := i
@@ -222,7 +178,12 @@ func main() {
 				if !running {
 					break
 				}
-
+			}
+			if !running {
+				break
+			}
+			if *fullPage {
+				unicornhat.Show()
 			}
 		}
 	}
