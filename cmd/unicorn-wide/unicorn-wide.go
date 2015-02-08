@@ -36,103 +36,98 @@ func random_byte() byte {
 	return byte(rand.Int())
 }
 
-func readPixelByPixelQuantum(input *bufio.Reader) (*unicornhat.Pixel, error) {
-	elements := make([]byte, 4)
-	count, err := input.Read(elements)
-	if err != nil && count == 0 {
-		return nil, err
-	}
-	microsecond_delay(time.Duration(elements[3]))
-	return unicornhat.NewPixel(elements[0], elements[1], elements[2]), err
+type MicrocodeField struct {
+	Pixel unicornhat.Pixel
+	Delay byte
 }
+type MicrocodeWord [64]MicrocodeField
 
-func pixelByPixelUpdate(input *bufio.Reader) {
-	for i := 0; i < 64; i++ {
-		if !running {
-			return
-		}
-		pixel, err := readPixelByPixelQuantum(input)
-		if err != nil {
-			running = false
-		}
-		if pixel != nil {
-			unicornhat.SetPixelColorType(uint(i), pixel)
-		}
-		unicornhat.Show()
-	}
-}
-
-func fullPageUpdate(input *bufio.Reader) {
+func readMicrocodeWord(input *bufio.Reader) (*MicrocodeWord, error) {
 	elements := make([]byte, 256)
 	count, err := input.Read(elements)
 	if err != nil && count == 0 {
 		running = false
-		return
+		return nil, err
 	}
-	var pixel unicornhat.Pixel
+	var word MicrocodeWord
 	for i := 0; i < 256; i += 4 {
-		pixel.R = elements[i]
-		pixel.G = elements[i+1]
-		pixel.B = elements[i+2]
-		delay := elements[i+3]
-		unicornhat.SetPixelColorType(uint(i/4), &pixel)
-		microsecond_delay(time.Duration(delay))
+		word[i/4].Pixel.R = elements[i]
+		word[i/4].Pixel.G = elements[i+1]
+		word[i/4].Pixel.B = elements[i+2]
+		word[i/4].Delay = elements[i+3]
 	}
-	unicornhat.Show()
-}
-func updateColumn(input *bufio.Reader, column int) {
-	elements := make([]byte, 32)
-	count, err := input.Read(elements)
-	if err != nil && count == 0 {
-		running = false
-		return
-	}
-	var pixel unicornhat.Pixel
-	for i := 0; i < 32; i += 4 {
-		pixel.R = elements[i]
-		pixel.G = elements[i+1]
-		pixel.B = elements[i+2]
-		delay := elements[i+3]
-		unicornhat.SetPixelColorType(uint(unicornhat.CoordinateToPosition(column, int(i/4))), &pixel)
-		microsecond_delay(time.Duration(delay))
-	}
-	unicornhat.Show()
+	return &word, nil
 }
 
-func updateRow(input *bufio.Reader, row int) {
-	elements := make([]byte, 32)
-	count, err := input.Read(elements)
-	if err != nil && count == 0 {
-		running = false
+func pixelByPixelUpdate(input *bufio.Reader) {
+	word, err := readMicrocodeWord(input)
+	if err != nil {
 		return
 	}
-	var pixel unicornhat.Pixel
-	for i := 0; i < 32; i += 4 {
-		pixel.R = elements[i]
-		pixel.G = elements[i+1]
-		pixel.B = elements[i+2]
-		delay := elements[i+3]
-		unicornhat.SetPixelColorType(uint(unicornhat.CoordinateToPosition(int(i/4), row)), &pixel)
-		microsecond_delay(time.Duration(delay))
+	for i := 0; i < 64; i++ {
+		if !running {
+			return
+		}
+		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
+		unicornhat.Show()
+		microsecond_delay(time.Duration(word[i].Delay))
+	}
+}
+
+func fullPageUpdate(input *bufio.Reader) {
+	word, err := readMicrocodeWord(input)
+	if err != nil {
+		return
+	}
+	for i := 0; i < 64; i++ {
+		if !running {
+			return
+		}
+		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
+		microsecond_delay(time.Duration(word[i].Delay))
 	}
 	unicornhat.Show()
 }
 
 func columnByColumnUpdate(input *bufio.Reader) {
+	word, err := readMicrocodeWord(input)
+	if err != nil {
+		return
+	}
 	for x := 0; x < 8; x++ {
-		updateColumn(input, x)
 		if !running {
 			return
 		}
+		for y := 0; y < 8; y++ {
+			if !running {
+				return
+			}
+			index := unicornhat.CoordinateToPosition(x, y)
+			unicornhat.SetPixelColorType(uint(index), &word[index].Pixel)
+			microsecond_delay(time.Duration(word[index].Delay))
+		}
+		unicornhat.Show()
 	}
 }
 
 func rowByRowUpdate(input *bufio.Reader) {
+	word, err := readMicrocodeWord(input)
+	if err != nil {
+		return
+	}
 	for y := 0; y < 8; y++ {
-		updateRow(input, y)
 		if !running {
 			return
 		}
+		for x := 0; x < 8; x++ {
+			if !running {
+				return
+			}
+			index := unicornhat.CoordinateToPosition(x, y)
+			unicornhat.SetPixelColorType(uint(index), &word[index].Pixel)
+			microsecond_delay(time.Duration(word[index].Delay))
+		}
+		unicornhat.Show()
 	}
 }
 
