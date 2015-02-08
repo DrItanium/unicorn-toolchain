@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-var fullpageUpdate = flag.Bool("fullpage", false, "Perform full page updates instead of pixel by pixel")
+var fullpageUpdate = flag.Bool("fullpage", false, "Perform full page updates")
+var columnByColumn = flag.Bool("column", false, "Perform column by column updates")
 
-//var rowbyrowUpdate = flag.Bool("rowbyrow", false, "Peform
 var running = true
 
 func terminate_unicorn(status int) {
@@ -74,6 +74,33 @@ func fullPageUpdate(input *bufio.Reader) {
 	}
 	unicornhat.Show()
 }
+func updateColumn(input *bufio.Reader, column int) {
+	elements := make([]byte, 32)
+	count, err := input.Read(elements)
+	if err != nil && count == 0 {
+		running = false
+		return
+	}
+	var pixel unicornhat.Pixel
+	for i := 0; i < 32; i += 4 {
+		pixel.R = elements[i]
+		pixel.G = elements[i+1]
+		pixel.B = elements[i+2]
+		delay := elements[i+3]
+		unicornhat.SetPixelColorType(uint(unicornhat.CoordinateToPosition(column, int(i/4))), &pixel)
+		microsecond_delay(time.Duration(delay))
+	}
+	unicornhat.Show()
+
+}
+func columnByColumnUpdate(input *bufio.Reader) {
+	for x := 0; x < 8; x++ {
+		updateColumn(input, x)
+		if !running {
+			return
+		}
+	}
+}
 
 func main() {
 	defer terminate_unicorn(0)
@@ -90,6 +117,8 @@ func main() {
 	for running {
 		if *fullpageUpdate {
 			fullPageUpdate(input)
+		} else if *columnByColumn {
+			columnByColumnUpdate(input)
 		} else {
 			pixelByPixelUpdate(input)
 		}
