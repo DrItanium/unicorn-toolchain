@@ -29,7 +29,7 @@ const (
 	Cyan
 )
 
-type intensityHandler func(intensity byte) unicornhat.Pixel
+type intensityHandler func(intensity byte) *unicornhat.Pixel
 
 func singleBytePixel(input *bufio.Reader, i int, transformer intensityHandler) bool {
 	tmp, err := input.ReadByte()
@@ -75,7 +75,7 @@ func colorPixel(input *bufio.Reader, i int) bool {
 	} else {
 		pixel.B = tmp
 	}
-	unicornhat.SetPixelColorType(uint(i), pixel)
+	unicornhat.SetPixelColorType(uint(i), &pixel)
 	if !*fullPage {
 		unicornhat.Show()
 	}
@@ -85,24 +85,22 @@ func colorPixel(input *bufio.Reader, i int) bool {
 	return true
 }
 func greyscalePixel(input *bufio.Reader, i int) bool {
-	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel {
-		return unicornhat.Pixel{R: intensity, G: intensity, B: intensity}
-	})
+	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, intensity, intensity) })
 }
 func purplePixel(input *bufio.Reader, i int) bool {
 	// purple is made up of red and blue so no green
-	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: intensity, G: 0, B: intensity} })
+	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, 0, intensity) })
 }
 func cyanPixel(input *bufio.Reader, i int) bool {
 	// cyan is made up of green and blue so no red
-	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: 0, G: intensity, B: intensity} })
+	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(0, intensity, intensity) })
 }
 func yellowPixel(input *bufio.Reader, i int) bool {
 	// yellow is made up of red and green so no blue
-	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: intensity, G: intensity, B: 0} })
+	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(intensity, intensity, 0) })
 }
 func greenPixel(input *bufio.Reader, i int) bool {
-	return singleBytePixel(input, i, func(intensity byte) unicornhat.Pixel { return unicornhat.Pixel{R: 0, G: intensity, B: 0} })
+	return singleBytePixel(input, i, func(intensity byte) *unicornhat.Pixel { return unicornhat.NewPixel(0, intensity, 0) })
 }
 func showPixel(input *bufio.Reader, i int) bool {
 	switch *preset {
