@@ -14,7 +14,8 @@ import (
 
 var coords = flag.Bool("horizontal", false, "display lights in a horzontal fashion instead of vertical")
 var randomize = flag.Bool("randomize", false, "randomize the position to select")
-
+var hyperSpeed = flag.Bool("hyperspeed", false, "eliminate all microsecond delay calls")
+var pixelDelay = flag.Uint("delay", 10, "number of microseconds to pause in between pixel updates")
 var preset = flag.Int("preset", 0, "select a predefined color palette index.\n\t0 - all colors\n\t1 - greyscale\n\t2 - green\n\t3 - yellow\n\t4 - yellow and green\n\t5 - purple\n\t6 - cyan")
 
 const (
@@ -49,7 +50,8 @@ func greyscalePixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+
+	microsecond_delay(time.Duration(*pixelDelay))
 	return true
 }
 func colorPixel(input *bufio.Reader, i int) bool {
@@ -74,7 +76,9 @@ func colorPixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
 	return true
 }
 func purplePixel(input *bufio.Reader, i int) bool {
@@ -90,7 +94,9 @@ func purplePixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
 	return true
 }
 func cyanPixel(input *bufio.Reader, i int) bool {
@@ -106,7 +112,9 @@ func cyanPixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
 	return true
 }
 func yellowPixel(input *bufio.Reader, i int) bool {
@@ -122,7 +130,9 @@ func yellowPixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
 	return true
 }
 func greenPixel(input *bufio.Reader, i int) bool {
@@ -135,7 +145,9 @@ func greenPixel(input *bufio.Reader, i int) bool {
 	}
 	unicornhat.SetPixelColorType(uint(i), pixel)
 	unicornhat.Show()
-	microsecond_delay(10)
+	if !*hyperSpeed {
+		microsecond_delay(time.Duration(*pixelDelay))
+	}
 	return true
 
 }
