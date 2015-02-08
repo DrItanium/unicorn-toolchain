@@ -5,10 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/DrItanium/neuron"
-	"github.com/DrItanium/unicorn-toolchain"
+	"github.com/DrItanium/unicorn-toolchain/microcode"
+	"github.com/DrItanium/unicorn-toolchain/sys"
 	"github.com/DrItanium/unicornhat"
-	"math/rand"
-	"os"
 	"syscall"
 	"time"
 )
@@ -19,20 +18,10 @@ var rowByRow = flag.Bool("row", false, "Perform row by row updates")
 var hyperspeed = flag.Bool("hyperspeed", false, "Disable delay (still consumes delay bytes)")
 var brightness = flag.Float64("brightness-factor", unicornhat.DefaultBrightness(), "Set brightness cap (0.0 - 1.0).\n\tWARNING: If you set this brightness too high you can cause retinal damage and I'm not responsible for that!!!")
 
-func terminate_unicorn(status int) {
-	for i := 0; i < 64; i++ {
-		unicornhat.SetPixelColor(uint(i), 0, 0, 0)
-	}
-	unicornhat.Show()
-	unicornhat.Shutdown(status)
-}
 func microsecond_delay(usec time.Duration) {
 	if !*hyperspeed {
 		time.Sleep(usec * time.Microsecond)
 	}
-}
-func random_byte() byte {
-	return byte(rand.Int())
 }
 
 func pixelByPixelUpdate(input *bufio.Reader) {
@@ -108,10 +97,9 @@ func rowByRowUpdate(input *bufio.Reader) {
 }
 
 func main() {
-	defer terminate_unicorn(0)
+	defer unicornsys.Terminate(0)
 	flag.Parse()
 	neuron.StopRunningOnSignal(syscall.SIGINT)
-	signalChan := make(chan os.Signal, 1)
 	if *brightness > unicornhat.DefaultBrightness() {
 		if *brightness > 1.0 {
 			fmt.Println("Brightness higher than 1.0, setting to default brightness for safety sake!")
@@ -126,7 +114,7 @@ func main() {
 	}
 	unicornhat.Initialize(64, *brightness)
 	unicornhat.ClearLEDBuffer()
-	input := bufio.NewReader(os.Stdin)
+	input := neuron.NewStandardInReader()
 	for neuron.IsRunning() {
 		if *fullpageUpdate {
 			fullPageUpdate(input)
