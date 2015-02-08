@@ -24,67 +24,54 @@ func microsecond_delay(usec time.Duration) {
 	}
 }
 
-func pixelByPixelUpdate(input *bufio.Reader) {
-	word, err := microcode.ReadMicrocodeWord(input)
-	if err != nil {
-		return
-	}
-	for i := 0; i < 64; i++ {
-		if !neuron.IsRunning() {
-			return
-		}
-		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
-		unicornhat.Show()
-		microsecond_delay(time.Duration(word[i].Delay))
-	}
-}
+type wideFunctionBody func(word *microcode.MicrocodeWord)
 
-func fullPageUpdate(input *bufio.Reader) {
+func loadWordAndPerformAction(input *bufio.Reader, body wideFunctionBody) {
 	word, err := microcode.ReadMicrocodeWord(input)
 	if err != nil {
 		return
 	}
-	for i := 0; i < 64; i++ {
-		if !neuron.IsRunning() {
-			return
-		}
-		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
-		microsecond_delay(time.Duration(word[i].Delay))
-	}
-	unicornhat.Show()
+	body(word)
 }
-func lineByLineUpdate(input *bufio.Reader, doRowByRow bool) {
-	word, err := microcode.ReadMicrocodeWord(input)
-	if err != nil {
-		return
-	}
-	for x := 0; x < 8; x++ {
-		if !neuron.IsRunning() {
-			return
-		}
-		for y := 0; y < 8; y++ {
+func nativePixelUpdate(input *bufio.Reader, fullpage bool) {
+	loadWordAndPerformAction(input, func(word *microcode.MicrocodeWord) {
+		for i := 0; i < 64; i++ {
 			if !neuron.IsRunning() {
 				return
 			}
-			var index int
-			if doRowByRow {
-				index = unicornhat.CoordinateToPosition(y, x)
-			} else {
-				index = unicornhat.CoordinateToPosition(x, y)
+			unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
+			if !fullpage {
+				unicornhat.Show()
 			}
-			unicornhat.SetPixelColorType(uint(index), &word[index].Pixel)
-			microsecond_delay(time.Duration(word[index].Delay))
+			microsecond_delay(time.Duration(word[i].Delay))
 		}
-		unicornhat.Show()
-	}
-
+		if fullpage {
+			unicornhat.Show()
+		}
+	})
 }
-func columnByColumnUpdate(input *bufio.Reader) {
-	lineByLineUpdate(input, false)
-}
-
-func rowByRowUpdate(input *bufio.Reader) {
-	lineByLineUpdate(input, true)
+func lineByLineUpdate(input *bufio.Reader, doRowByRow bool) {
+	loadWordAndPerformAction(input, func(word *microcode.MicrocodeWord) {
+		for x := 0; x < 8; x++ {
+			if !neuron.IsRunning() {
+				return
+			}
+			for y := 0; y < 8; y++ {
+				if !neuron.IsRunning() {
+					return
+				}
+				var index int
+				if doRowByRow {
+					index = unicornhat.CoordinateToPosition(y, x)
+				} else {
+					index = unicornhat.CoordinateToPosition(x, y)
+				}
+				unicornhat.SetPixelColorType(uint(index), &word[index].Pixel)
+				microsecond_delay(time.Duration(word[index].Delay))
+			}
+			unicornhat.Show()
+		}
+	})
 }
 
 func main() {
@@ -108,13 +95,13 @@ func main() {
 	input := neuron.NewStandardInReader()
 	for neuron.IsRunning() {
 		if *fullpageUpdate {
-			fullPageUpdate(input)
+			nativePixelUpdate(input, true)
 		} else if *columnByColumn {
-			columnByColumnUpdate(input)
+			lineByLineUpdate(input, false)
 		} else if *rowByRow {
-			rowByRowUpdate(input)
+			lineByLineUpdate(input, true)
 		} else {
-			pixelByPixelUpdate(input)
+			nativePixelUpdate(input, false)
 		}
 	}
 }
