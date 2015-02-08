@@ -8,12 +8,11 @@ import (
 	"github.com/DrItanium/unicorn-toolchain/sys"
 	"github.com/DrItanium/unicornhat"
 	"math/rand"
-	"os"
 	"syscall"
 	"time"
 )
 
-var coords = flag.Bool("horizontal", false, "display lights in a horzontal fashion instead of vertical")
+var horizontal = flag.Bool("horizontal", false, "display lights in a horzontal fashion instead of vertical")
 var randomize = flag.Bool("randomize", false, "randomize the position to select")
 var hyperSpeed = flag.Bool("hyperspeed", false, "eliminate all microsecond delay calls")
 var pixelDelay = flag.Uint("delay", 10, "number of microseconds to pause in between pixel updates")
@@ -127,48 +126,28 @@ func main() {
 	neuron.StopRunningOnSignal(syscall.SIGINT)
 	unicornhat.Initialize(64, unicornhat.DefaultBrightness())
 	unicornhat.ClearLEDBuffer()
-	unicornhat.Show()
-	input := bufio.NewReader(os.Stdin)
+	input := neuron.NewStandardInReader()
 	// setup the initial pixels
 	for neuron.IsRunning() {
-		if *coords {
-			for y := 0; y < 8; y++ {
-				for x := 0; x < 8; x++ {
-					vY := y
-					vX := x
-					if *randomize && (r.Int()%2 == 1) {
-						vY = r.Int() % 8
-						vX = r.Int() % 8
-					}
-					showPixel(input, unicornhat.CoordinateToPosition(vX, vY))
-					if !neuron.IsRunning() {
-						break
-					}
-				}
-				if !neuron.IsRunning() {
-					break
-				}
-			}
-			if *fullPage {
-				unicornhat.Show()
-			}
-		} else {
-			for i := 0; i < 64; i++ {
-				vI := i
+		for y := 0; neuron.IsRunning() && y < 8; y++ {
+			for x := 0; neuron.IsRunning() && x < 8; x++ {
+				vY := y
+				vX := x
 				if *randomize && (r.Int()%2 == 1) {
-					vI = r.Int() % 64
+					vY = r.Int() % 8
+					vX = r.Int() % 8
 				}
-				showPixel(input, vI)
-				if !neuron.IsRunning() {
-					break
+				var index int
+				if *horizontal {
+					index = unicornhat.CoordinateToPosition(vX, vY)
+				} else {
+					index = unicornhat.CoordinateToPosition(vY, vX)
 				}
+				showPixel(input, index)
 			}
-			if !neuron.IsRunning() {
-				break
-			}
-			if *fullPage {
-				unicornhat.Show()
-			}
+		}
+		if *fullPage {
+			unicornhat.Show()
 		}
 	}
 }
