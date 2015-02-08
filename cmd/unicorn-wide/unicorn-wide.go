@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/DrItanium/neuron"
+	"github.com/DrItanium/unicorn-toolchain"
 	"github.com/DrItanium/unicornhat"
 	"math/rand"
 	"os"
-	"os/signal"
 	"syscall"
 	"time"
 )
@@ -17,8 +18,6 @@ var columnByColumn = flag.Bool("column", false, "Perform column by column update
 var rowByRow = flag.Bool("row", false, "Perform row by row updates")
 var hyperspeed = flag.Bool("hyperspeed", false, "Disable delay (still consumes delay bytes)")
 var brightness = flag.Float64("brightness-factor", unicornhat.DefaultBrightness(), "Set brightness cap (0.0 - 1.0).\n\tWARNING: If you set this brightness too high you can cause retinal damage and I'm not responsible for that!!!")
-
-var running = true
 
 func terminate_unicorn(status int) {
 	for i := 0; i < 64; i++ {
@@ -36,36 +35,13 @@ func random_byte() byte {
 	return byte(rand.Int())
 }
 
-type MicrocodeField struct {
-	Pixel unicornhat.Pixel
-	Delay byte
-}
-type MicrocodeWord [64]MicrocodeField
-
-func readMicrocodeWord(input *bufio.Reader) (*MicrocodeWord, error) {
-	elements := make([]byte, 256)
-	count, err := input.Read(elements)
-	if err != nil && count == 0 {
-		running = false
-		return nil, err
-	}
-	var word MicrocodeWord
-	for i := 0; i < 256; i += 4 {
-		word[i/4].Pixel.R = elements[i]
-		word[i/4].Pixel.G = elements[i+1]
-		word[i/4].Pixel.B = elements[i+2]
-		word[i/4].Delay = elements[i+3]
-	}
-	return &word, nil
-}
-
 func pixelByPixelUpdate(input *bufio.Reader) {
-	word, err := readMicrocodeWord(input)
+	word, err := microcode.ReadMicrocodeWord(input)
 	if err != nil {
 		return
 	}
 	for i := 0; i < 64; i++ {
-		if !running {
+		if !neuron.IsRunning() {
 			return
 		}
 		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
@@ -75,12 +51,12 @@ func pixelByPixelUpdate(input *bufio.Reader) {
 }
 
 func fullPageUpdate(input *bufio.Reader) {
-	word, err := readMicrocodeWord(input)
+	word, err := microcode.ReadMicrocodeWord(input)
 	if err != nil {
 		return
 	}
 	for i := 0; i < 64; i++ {
-		if !running {
+		if !neuron.IsRunning() {
 			return
 		}
 		unicornhat.SetPixelColorType(uint(i), &word[i].Pixel)
@@ -90,16 +66,16 @@ func fullPageUpdate(input *bufio.Reader) {
 }
 
 func columnByColumnUpdate(input *bufio.Reader) {
-	word, err := readMicrocodeWord(input)
+	word, err := microcode.ReadMicrocodeWord(input)
 	if err != nil {
 		return
 	}
 	for x := 0; x < 8; x++ {
-		if !running {
+		if !neuron.IsRunning() {
 			return
 		}
 		for y := 0; y < 8; y++ {
-			if !running {
+			if !neuron.IsRunning() {
 				return
 			}
 			index := unicornhat.CoordinateToPosition(x, y)
@@ -111,16 +87,16 @@ func columnByColumnUpdate(input *bufio.Reader) {
 }
 
 func rowByRowUpdate(input *bufio.Reader) {
-	word, err := readMicrocodeWord(input)
+	word, err := microcode.ReadMicrocodeWord(input)
 	if err != nil {
 		return
 	}
 	for y := 0; y < 8; y++ {
-		if !running {
+		if !neuron.IsRunning() {
 			return
 		}
 		for x := 0; x < 8; x++ {
-			if !running {
+			if !neuron.IsRunning() {
 				return
 			}
 			index := unicornhat.CoordinateToPosition(x, y)
@@ -134,12 +110,8 @@ func rowByRowUpdate(input *bufio.Reader) {
 func main() {
 	defer terminate_unicorn(0)
 	flag.Parse()
+	neuron.StopRunningOnSignal(syscall.SIGINT)
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT)
-	go func() {
-		<-signalChan
-		running = false
-	}()
 	if *brightness > unicornhat.DefaultBrightness() {
 		if *brightness > 1.0 {
 			fmt.Println("Brightness higher than 1.0, setting to default brightness for safety sake!")
@@ -155,7 +127,7 @@ func main() {
 	unicornhat.Initialize(64, *brightness)
 	unicornhat.ClearLEDBuffer()
 	input := bufio.NewReader(os.Stdin)
-	for running {
+	for neuron.IsRunning() {
 		if *fullpageUpdate {
 			fullPageUpdate(input)
 		} else if *columnByColumn {
