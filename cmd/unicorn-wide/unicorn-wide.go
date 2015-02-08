@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"github.com/DrItanium/unicornhat"
 	"math/rand"
 	"os"
@@ -14,6 +15,8 @@ import (
 var fullpageUpdate = flag.Bool("fullpage", false, "Perform full page updates")
 var columnByColumn = flag.Bool("column", false, "Perform column by column updates")
 var rowByRow = flag.Bool("row", false, "Perform row by row updates")
+var hyperspeed = flag.Bool("hyperspeed", false, "Disable delay (still consumes delay bytes)")
+var brightness = flag.Float64("brightness-factor", unicornhat.DefaultBrightness(), "Set brightness cap (0.0 - 1.0).\n\tWARNING: If you set this brightness too high you can cause retinal damage and I'm not responsible for that!!!")
 
 var running = true
 
@@ -25,7 +28,9 @@ func terminate_unicorn(status int) {
 	unicornhat.Shutdown(status)
 }
 func microsecond_delay(usec time.Duration) {
-	time.Sleep(usec * time.Microsecond)
+	if !*hyperspeed {
+		time.Sleep(usec * time.Microsecond)
+	}
 }
 func random_byte() byte {
 	return byte(rand.Int())
@@ -140,7 +145,19 @@ func main() {
 		<-signalChan
 		running = false
 	}()
-	unicornhat.Initialize(64, unicornhat.DefaultBrightness())
+	if *brightness > unicornhat.DefaultBrightness() {
+		if *brightness > 1.0 {
+			fmt.Println("Brightness higher than 1.0, setting to default brightness for safety sake!")
+			*brightness = unicornhat.DefaultBrightness()
+		} else {
+			fmt.Println("WARNING: you've set the brightness higher than the default, this can get bright! Please don't look directly at it!")
+		}
+	}
+	if *brightness < 0.0 {
+		fmt.Println("Brightness less than 0.0, setting to default brightness!")
+		*brightness = unicornhat.DefaultBrightness()
+	}
+	unicornhat.Initialize(64, *brightness)
 	unicornhat.ClearLEDBuffer()
 	input := bufio.NewReader(os.Stdin)
 	for running {
