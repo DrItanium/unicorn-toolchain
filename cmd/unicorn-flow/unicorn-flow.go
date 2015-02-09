@@ -27,16 +27,44 @@ func microsecond_delay(usec time.Duration) {
 type wideFunctionBody func(word *microcode.MicrocodeWord)
 
 func shiftWord(input *bufio.Reader) {
-	for i := 63; i > 0; i-- {
-		microcodeWord[i].Pixel.R = microcodeWord[i-1].Pixel.R
-		microcodeWord[i].Pixel.G = microcodeWord[i-1].Pixel.G
-		microcodeWord[i].Pixel.B = microcodeWord[i-1].Pixel.B
-		microcodeWord[i].Delay = microcodeWord[i-1].Delay
+	for x := 7; x >= 0; x-- {
+		// select the previous coordinate
+		oldX := x - 1
+		for y := 7; y >= 0; y-- {
+			this := unicornhat.CoordinateToPosition(x, y)
+			var prev int
+			update := false
+			oldY := y - 1
+			if oldY < 0 {
+				// we've underflowed
+				if oldX >= 0 {
+					prev = unicornhat.CoordinateToPosition(oldX, 7)
+					update = true
+				}
+			} else {
+				prev = unicornhat.CoordinateToPosition(x, oldY)
+				update = true
+			}
+			if update {
+				microcodeWord[this].Pixel.R = microcodeWord[prev].Pixel.R
+				microcodeWord[this].Pixel.G = microcodeWord[prev].Pixel.G
+				microcodeWord[this].Pixel.B = microcodeWord[prev].Pixel.B
+				microcodeWord[this].Delay = microcodeWord[prev].Delay
+			}
+		}
 	}
-	// now read a new pixel in
-	err := loadPixel(input, &microcodeWord[0])
-	if err != nil {
-		neuron.StopRunning()
+	index := unicornhat.CoordinateToPosition(0, 0)
+	if !neuron.IsRunning() {
+		microcodeWord[index].Pixel.R = 0
+		microcodeWord[index].Pixel.G = 0
+		microcodeWord[index].Pixel.B = 0
+		microcodeWord[index].Delay = 0
+	} else {
+		// now read a new pixel in
+		err := loadPixel(input, &microcodeWord[index])
+		if err != nil {
+			neuron.StopRunning()
+		}
 	}
 }
 func loadPixel(input *bufio.Reader, fld *microcode.MicrocodeField) error {
@@ -51,7 +79,15 @@ func loadPixel(input *bufio.Reader, fld *microcode.MicrocodeField) error {
 		return nil
 	}
 }
-
+func flush(input *bufio.Reader) {
+	for i := 0; i < 64; i++ {
+		shiftWord(input)
+		for j := 0; j < 64; j++ {
+			microcodeWord[j].UpdateNativePixel(j, microsecond_delay)
+		}
+		unicornhat.Show()
+	}
+}
 func main() {
 	defer unicornsys.Terminate(0)
 	flag.Parse()
@@ -75,20 +111,5 @@ func main() {
 		unicornhat.Show()
 		shiftWord(input)
 	}
-	for i := 63; i > 0; i-- {
-		microcodeWord[i] = microcodeWord[i-1]
-		microcodeWord[i].UpdateNativePixel(i, microsecond_delay)
-	}
-	microcodeWord[0].Pixel.R = 0
-	microcodeWord[0].Pixel.G = 0
-	microcodeWord[0].Pixel.B = 0
-	microcodeWord[0].UpdateNativePixel(0, microsecond_delay)
-	unicornhat.Show()
-	for q := 0; q < 64; q++ {
-		for i := 63; i > 0; i-- {
-			microcodeWord[i] = microcodeWord[i-1]
-			microcodeWord[i].UpdateNativePixel(i, microsecond_delay)
-		}
-		unicornhat.Show()
-	}
+	flush(input)
 }
