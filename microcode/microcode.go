@@ -9,14 +9,15 @@ import (
 )
 
 const (
-	MicrocodeWordSize = 256
+	MicrocodeWordSize   = 256
+	MicrocodeFieldCount = 64
 )
 
 type MicrocodeField struct {
 	Pixel unicornhat.Pixel
 	Delay byte
 }
-type MicrocodeWord [64]MicrocodeField
+type MicrocodeWord [MicrocodeFieldCount]MicrocodeField
 
 func ReadMicrocodeWord(input *bufio.Reader) (*MicrocodeWord, error) {
 	elements := make([]byte, MicrocodeWordSize)
@@ -45,4 +46,14 @@ func (self *MicrocodeField) Pause(f DelayFunction) {
 func (self *MicrocodeField) UpdateNativePixel(index int, f DelayFunction) {
 	unicornhat.SetPixelColorType(uint(index), &self.Pixel)
 	self.Pause(f)
+}
+
+func (self *MicrocodeWord) UpdateNativePixels(f DelayFunction) {
+	for i := 0; i < MicrocodeFieldCount; i++ {
+		self[i].UpdateNativePixel(i, f)
+	}
+}
+
+func (self *MicrocodeWord) FieldFromCoordinates(x, y int) *MicrocodeField {
+	return &self[unicornhat.CoordinateToPosition(x, y)]
 }
